@@ -6,4 +6,5 @@ import (
 
 var (
 	ErrFileNotFound = errors.New("file not found")
+	ErrTokenExpired = errors.New("token expired")
 )

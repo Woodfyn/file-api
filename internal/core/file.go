@@ -2,21 +2,35 @@ package core
 
 import (
 	"io"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type File struct {
-	ID    string `json:"id" bson:"_id"`
-	Name  string `json:"name" bson:"name"`
-	Size  int64  `json:"size" bson:"size"`
-	Bytes []byte `json:"file" bson:"bytes"`
+	ID    primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	Name  string             `json:"name" bson:"name"`
+	Size  int64              `json:"size" bson:"size"`
+	Type  string             `json:"type" bson:"type"`
+	Bytes []byte             `json:"file" bson:"file"`
 }
 
 type CreateFileDTO struct {
-	Name   string `json:"name" validate:"required"`
-	Size   int64  `json:"size" validate:"required"`
+	Name   string `json:"name"`
+	Size   int64  `json:"size"`
+	Type   string `json:"type"`
 	Reader io.Reader
 }
 
-func (f *CreateFileDTO) Validate() error {
-	return validate.Struct(f)
+func NewFile(dto *CreateFileDTO) (*File, error) {
+	bytes, err := io.ReadAll(dto.Reader)
+	if err != nil {
+		return nil, err
+	}
+
+	return &File{
+		Name:  dto.Name,
+		Size:  dto.Size,
+		Type:  dto.Type,
+		Bytes: bytes,
+	}, nil
 }

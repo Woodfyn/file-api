@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-redis/redis"
 )
@@ -14,10 +15,19 @@ func NewTokenRedis(db *redis.Client) *TokenRedis {
 	return &TokenRedis{db: db}
 }
 
-func (t *TokenRedis) SetTokenSession(ctx context.Context, userId int, token string) error {
+func (t *TokenRedis) SetTokenSession(ctx context.Context, userId string, token string, ttl time.Duration) error {
+	if err := t.db.Set(token, userId, ttl).Err(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (t *TokenRedis) CheckTokenSession(ctx context.Context, userId int, token string) (bool, error) {
-	return false, nil
+func (t *TokenRedis) GetTokenSession(ctx context.Context, token string) (string, error) {
+	id, err := t.db.Get(token).Result()
+	if err != nil {
+		return "", err
+	}
+
+	return id, err
 }

@@ -8,7 +8,7 @@ import (
 )
 
 func (h *Handler) initFileRouter(api fiber.Router) {
-	h.authMiddleware()
+	api.Use(h.authMiddleware())
 
 	file := api.Group("/file")
 	{
@@ -18,11 +18,12 @@ func (h *Handler) initFileRouter(api fiber.Router) {
 }
 
 func (h *Handler) fileUpload(c *fiber.Ctx) {
-	c.Set("Content-Type", "application/json")
+	c.Accepts("multipart/form-data")
 
-	file, err := c.FormFile("fileUpload")
+	file, err := c.FormFile("file")
 	if err != nil {
-		newErrorResponse(c, fiber.StatusBadRequest, "failed to get file")
+		newErrorResponse(c, fiber.StatusBadRequest, "invalid file")
+		return
 	}
 
 	buffer, err := file.Open()
@@ -30,35 +31,31 @@ func (h *Handler) fileUpload(c *fiber.Ctx) {
 		newErrorResponse(c, fiber.StatusBadRequest, "failed to open file")
 		return
 	}
+
 	defer buffer.Close()
 
 	dto := core.CreateFileDTO{
 		Name:   file.Filename,
 		Size:   file.Size,
+		Type:   file.Header.Get("Content-Type"),
 		Reader: buffer,
 	}
 
-	if err := dto.Validate(); err != nil {
-		newErrorResponse(c, fiber.StatusBadRequest, err.Error())
-	}
-
-	err = h.service.Files.Upload(c.Context(), &dto)
-	if err != nil {
+	if err := h.service.Files.Upload(c.Context(), &dto); err != nil {
 		newErrorResponse(c, fiber.StatusInternalServerError, "failed to upload file")
+		return
 	}
 
 	newSuccessResponse(c, fiber.StatusOK, "success")
 }
 
 func (h *Handler) files(c *fiber.Ctx) {
-	c.Set("Content-Type", "application/json")
-
-	files, err := h.service.Files.GetFiles(c.Context(), c.Fasthttp.Response.BodyWriter())
+	files, err := h.service.Files.GetFiles(c.Context())
 	if err != nil {
 		newErrorResponse(c, fiber.StatusInternalServerError, "failed to get files")
 	}
 
-	resp := make([]map[string]interface{}, len(files))
+	response := make([]map[string]interface{}, len(files))
 	for i, fileInfo := range files {
 		fileData := map[string]interface{}{
 			"id":   fileInfo.ID,
@@ -66,10 +63,10 @@ func (h *Handler) files(c *fiber.Ctx) {
 			"size": fileInfo.Size,
 			"file": fileInfo.Bytes,
 		}
-		resp[i] = fileData
+		response[i] = fileData
 	}
 
-	respJSON, err := json.Marshal(resp)
+	respJSON, err := json.Marshal(response)
 	if err != nil {
 		newErrorResponse(c, fiber.StatusInternalServerError, "error marshaling response")
 		return

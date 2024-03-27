@@ -9,12 +9,12 @@ import (
 
 type Users interface {
 	CreateUser(ctx context.Context, user *core.User) error
-	GetUser(ctx context.Context, email string) (*core.User, error)
+	GetUser(ctx context.Context, password string) (*core.User, error)
 }
 
 type Files interface {
 	CreateFile(ctx context.Context, file *core.File) error
-	GetFiles(ctx context.Context) (*[]core.File, error)
+	GetFileByName(ctx context.Context, name string) (*core.File, error)
 }
 
 type Repository struct {
@@ -22,7 +22,7 @@ type Repository struct {
 	Files Files
 }
 
-func NewRepository(db *mongo.Client) *Repository {
+func NewRepository(db *mongo.Database) *Repository {
 	return &Repository{
 		Users: NewUsersMongo(db),
 		Files: NewFilesMongo(db),

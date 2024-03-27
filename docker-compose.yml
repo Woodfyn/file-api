@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    depends_on:
+      - rdb
+      - mongo
+    ports:
+      - "8080:8080"
+    # restart: always
+    volumes:
+      - .env:/root/.env
+
+    networks:
+      - application
+
+  rdb:
+    image: redis:latest
+    # restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - /path/to/local/data:/root/redis
+      - /path/to/local/redis.conf:/usr/local/etc/redis/redis.conf
+    env_file:
+      - .env
+    networks:
+      - application
+
+  mongo:
+    # restart: always
+    image: mongo:latest
+    volumes:
+      - ./data:/data/d
+    ports:
+      - 27017:27017
+    env_file:
+      - .env
+    networks:
+      - application
+
+networks:
+  application:
+    driver: bridge

@@ -24,7 +24,7 @@ func (h *Handler) Init(api fiber.Router) {
 
 	v1 := api.Group("/v1")
 	{
-		h.initFileRouter(v1)
 		h.initUserRouter(v1)
+		h.initFileRouter(v1)
 	}
 }

@@ -2,5 +2,5 @@ server:
   port: "8080"
 
 jwt:
-  accsess_token_ttl: 5m
+  accsess_token_ttl: 15m
   refresh_token_ttl: 60m

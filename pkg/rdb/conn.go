@@ -1,6 +1,10 @@
 package rdb
 
-import "github.com/go-redis/redis"
+import (
+	"time"
+
+	"github.com/go-redis/redis"
+)
 
 type ConnInfo struct {
 	Addr     string
@@ -9,7 +13,9 @@ type ConnInfo struct {
 
 func NewRdbClient(info ConnInfo) *redis.Client {
 	return redis.NewClient(&redis.Options{
-		Addr:     info.Addr,
-		Password: info.Password,
+		Addr:         info.Addr,
+		Password:     info.Password,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
 	})
 }

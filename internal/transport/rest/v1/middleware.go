@@ -21,10 +21,17 @@ func (h *Handler) authMiddleware() fiber.Handler {
 		token, err := getTokenFromRequest(&c.Fasthttp.Request)
 		if err != nil {
 			newErrorResponse(c, fiber.StatusUnauthorized, err.Error())
+			return
 		}
 
 		if _, err = h.auth.Parse(token); err != nil {
 			newErrorResponse(c, fiber.StatusUnauthorized, err.Error())
+			return
+		}
+
+		if !h.auth.IsTokenExpired(token) {
+			newErrorResponse(c, fiber.StatusUnauthorized, "token is Expired")
+			return
 		}
 
 		c.Next()
@@ -33,6 +40,7 @@ func (h *Handler) authMiddleware() fiber.Handler {
 
 func getTokenFromRequest(r *fasthttp.Request) (string, error) {
 	header := r.Header.Peek("Authorization")
+
 	strHeader := string(header)
 	if strHeader == "" {
 		return "", errors.New("empty auth header")

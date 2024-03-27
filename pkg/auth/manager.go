@@ -14,6 +14,7 @@ type TokenManager interface {
 	NewJWT(userId string, ttl time.Duration) (string, error)
 	Parse(accessToken string) (string, error)
 	NewRefreshToken() (string, error)
+	IsTokenExpired(accessToken string) bool
 }
 
 type Manager struct {
@@ -55,6 +56,18 @@ func (m *Manager) Parse(accessToken string) (string, error) {
 	}
 
 	return claims["sub"].(string), nil
+}
+
+func (m *Manager) IsTokenExpired(accessToken string) bool {
+	token, err := jwt.Parse(accessToken, func(token *jwt.Token) (i interface{}, err error) {
+		return []byte(m.signingKey), nil
+	})
+
+	if err != nil {
+		return false
+	}
+
+	return token.Valid
 }
 
 func (m *Manager) NewRefreshToken() (string, error) {

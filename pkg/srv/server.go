@@ -1,23 +1,30 @@
-package server
+package srv
 
 import (
-	"crypto/tls"
 	"time"
 
 	"github.com/gofiber/fiber"
 )
 
-func Run(port string, app *fiber.App) error {
+type Server struct {
+	app *fiber.App
+}
+
+func NewServer(app *fiber.App) *Server {
+	return &Server{app: app}
+}
+
+func (s *Server) Run(port string) error {
 	settings := fiber.Settings{
 		WriteTimeout: 10 * time.Second,
 		ReadTimeout:  10 * time.Second,
 	}
 
-	*app.Settings = settings
+	*s.app.Settings = settings
 
-	return app.Listen(":"+port, &tls.Config{})
+	return s.app.Listen(":" + port)
 }
 
-func Shutdown(app *fiber.App) error {
-	return app.Shutdown()
+func (s *Server) Shutdown() error {
+	return s.app.Shutdown()
 }

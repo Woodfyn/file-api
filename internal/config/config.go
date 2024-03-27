@@ -12,6 +12,7 @@ import (
 type Config struct {
 	Mongo    Mongo
 	RDB      RDB
+	Firebase Firebase
 	Server   Server
 	JWT      JWT
 	Password Password
@@ -19,13 +20,18 @@ type Config struct {
 
 type Mongo struct {
 	URI      string
+	Database string
 	Username string
 	Password string
 }
 
 type RDB struct {
-	ADR      string
-	Password string
+	Addr string
+}
+
+type Firebase struct {
+	FileName   string
+	BucketName string
 }
 
 type Server struct {
@@ -68,12 +74,15 @@ func setFromEnv(cfg *Config) error {
 		return core.ErrFileNotFound
 	}
 
-	cfg.Mongo.URI = os.Getenv("MONGO_URI")
-	cfg.Mongo.Username = os.Getenv("MONGO_USERNAME")
-	cfg.Mongo.Password = os.Getenv("MONGO_PASSWORD")
+	cfg.Mongo.URI = os.Getenv("MONGO_INITDB_ROOT_URI")
+	cfg.Mongo.Database = os.Getenv("MONGO_INITDB_ROOT_DATABASE")
+	cfg.Mongo.Username = os.Getenv("MONGO_INITDB_ROOT_USERNAME")
+	cfg.Mongo.Password = os.Getenv("MONGO_INITDB_ROOT_PASSWORD")
 
-	cfg.RDB.ADR = os.Getenv("REDIS_ADR")
-	cfg.RDB.Password = os.Getenv("REDIS_PASSWORD")
+	cfg.RDB.Addr = os.Getenv("REDIS_PORT")
+
+	cfg.Firebase.FileName = os.Getenv("FIREBASE_FILE_NAME")
+	cfg.Firebase.BucketName = os.Getenv("FIREBASE_BUCKET_NAME")
 
 	cfg.Password.Salt = os.Getenv("PASSWORD_SALT")
 

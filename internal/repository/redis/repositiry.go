@@ -2,13 +2,14 @@ package redis
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-redis/redis"
 )
 
 type Tokens interface {
-	SetTokenSession(ctx context.Context, userId int, token string) error
-	CheckTokenSession(ctx context.Context, userId int, token string) (bool, error)
+	SetTokenSession(ctx context.Context, userId string, token string, ttl time.Duration) error
+	GetTokenSession(ctx context.Context, userId string) (string, error)
 }
 
 type Repository struct {
