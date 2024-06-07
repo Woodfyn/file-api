@@ -7,110 +7,72 @@ import (
 
 	"github.com/Woodfyn/file-api/internal/config"
 	"github.com/Woodfyn/file-api/internal/repository/mongo"
-	"github.com/Woodfyn/file-api/internal/repository/redis"
 	"github.com/Woodfyn/file-api/internal/repository/storage"
 	"github.com/Woodfyn/file-api/internal/service"
+	"github.com/Woodfyn/file-api/internal/transport"
 	"github.com/Woodfyn/file-api/internal/transport/rest"
 	"github.com/Woodfyn/file-api/pkg/auth"
-	"github.com/Woodfyn/file-api/pkg/fbstorage"
 	"github.com/Woodfyn/file-api/pkg/hash"
 	"github.com/Woodfyn/file-api/pkg/mdb"
-	"github.com/Woodfyn/file-api/pkg/rdb"
 	"github.com/Woodfyn/file-api/pkg/signaler"
 	"github.com/Woodfyn/file-api/pkg/srv"
+	awsCfg "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 const (
-	cfg_folder = "configs"
-	cfg_file   = "prod"
+	CFG_FOLDER = "configs"
+	CFG_FILE   = "prod"
 )
 
+var appCtx = context.Background()
+
 func init() {
-	h := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
-	slog.SetDefault(slog.New(h))
+	log := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
+	slog.SetDefault(slog.New(log))
 }
 
 func Run() {
-	// init config
-	cfg, err := config.InitConfig(cfg_folder, cfg_file)
+	cfg, err := config.InitConfig(CFG_FOLDER, CFG_FILE)
 	if err != nil {
 		panic(err)
 	}
 
-	slog.Info("config loaded", "cfg", cfg)
-
-	// init all clients
-	rdbClient := rdb.NewRdbClient(rdb.ConnInfo{
-		Addr: cfg.RDB.Addr,
-	})
-
-	if err := rdbClient.Ping().Err(); err != nil {
-		panic(err)
-	}
-
-	defer rdbClient.Close()
-
-	mongoClient, err := mdb.NewMongoClient(context.Background(), mdb.ConnInfo{
+	db, err := mdb.NewMongoClient(appCtx, mdb.ConnInfo{
 		URI:      cfg.Mongo.URI,
 		Username: cfg.Mongo.Username,
 		Password: cfg.Mongo.Password,
+		Database: cfg.Mongo.Database,
 	})
 	if err != nil {
 		panic(err)
 	}
-	mongoDB := mongoClient.Database(cfg.Mongo.Database)
-	defer mongoClient.Disconnect(context.Background())
 
-	hasher := hash.NewSHA1Hasher(cfg.Password.Salt)
-	tokenManager, err := auth.NewManager(cfg.JWT.Secret)
+	awsCfg, err := awsCfg.LoadDefaultConfig(appCtx, awsCfg.WithRegion(cfg.AWS.Region))
 	if err != nil {
 		panic(err)
 	}
 
-	fbClient, err := fbstorage.NewFBStorageClient(context.Background(), cfg.Firebase.FileName)
+	storageS3 := s3.NewFromConfig(awsCfg)
+
+	presignS3 := s3.NewPresignClient(storageS3)
+
+	hasher := hash.NewSHA256Hasher(cfg.Password.Salt)
+
+	authManager, err := auth.NewManager(cfg.JWT.Secret)
 	if err != nil {
 		panic(err)
 	}
 
-	// init dependencies
-	redis := redis.NewRepository(rdbClient)
-	storage := storage.NewRepository(fbClient.Bucket(cfg.Firebase.BucketName))
-	mongo := mongo.NewRepository(mongoDB)
+	handler := transport.NewHandler(rest.NewHandler(service.NewFile(mongo.NewFile(db), storage.NewFile(storageS3, presignS3, cfg.AWS.BucketName)),
+		service.NewAuth(mongo.NewAuth(db), hasher, authManager, cfg.JWT.AccessTokenTTL, cfg.JWT.RefreshTokenTTL)))
 
-	deps := service.Deps{
-		RedisRepos:  redis,
-		MongoRepo:   mongo,
-		StorageRepo: storage,
-		Hasher:      hasher,
+	slog.Info("Starting server...")
+	server := srv.NewServer(handler.Init())
+	server.Run(cfg.Server.Port)
 
-		TokenManager: tokenManager,
-		AcssTokenTTL: cfg.JWT.AccessTokenTTL,
-		RefreshTTL:   cfg.JWT.RefreshTokenTTL,
-	}
-
-	service := service.NewService(deps)
-	handler := rest.NewHandler(service, tokenManager)
-
-	srv := srv.NewServer(handler.Init())
-
-	// run server
-	go func() {
-		if err := srv.Run(cfg.Server.Port); err != nil {
-			panic(err)
-		}
-	}()
-
-	slog.Info("server started...")
-
-	// graceful shutdown
 	signaler.Wait()
 
-	slog.Info("server stopped...")
-
-	if err := fbClient.Close(); err != nil {
-		panic(err)
-	}
-
-	// shutdown server
-	srv.Shutdown()
+	slog.Info("Shutting down...")
+	server.Shutdown()
 }

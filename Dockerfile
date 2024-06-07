@@ -16,6 +16,4 @@ COPY --from=file-api-builder /github.com/Woodfyn/file-api/.bin/app .
 
 COPY --from=file-api-builder /github.com/Woodfyn/file-api/configs/prod.yml ./configs/prod.yml
 
-COPY --from=file-api-builder /github.com/Woodfyn/file-api/configs/prod.yml ./firebase.cfg.json
-
 CMD ["./app"]

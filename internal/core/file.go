@@ -1,36 +1,22 @@
 package core
 
 import (
-	"io"
-
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type File struct {
-	ID    primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	Name  string             `json:"name" bson:"name"`
-	Size  int64              `json:"size" bson:"size"`
-	Type  string             `json:"type" bson:"type"`
-	Bytes []byte             `json:"file" bson:"file"`
+	ID        primitive.ObjectID `bson:"_id,omitempty"`
+	UserID    string             `bson:"user_id"`
+	Name      string             `bson:"name"`
+	Size      int64              `bson:"size"`
+	CreatedAt string             `bson:"created_at"`
 }
 
-type CreateFileDTO struct {
-	Name   string `json:"name"`
-	Size   int64  `json:"size"`
-	Type   string `json:"type"`
-	Reader io.Reader
-}
-
-func NewFile(dto *CreateFileDTO) (*File, error) {
-	bytes, err := io.ReadAll(dto.Reader)
-	if err != nil {
-		return nil, err
-	}
-
-	return &File{
-		Name:  dto.Name,
-		Size:  dto.Size,
-		Type:  dto.Type,
-		Bytes: bytes,
-	}, nil
+type GetAllFilesResp struct {
+	ID        string `json:"id"`
+	UserID    string `json:"user_id"`
+	Name      string `json:"name"`
+	Size      int64  `json:"size"`
+	Url       string `json:"url"`
+	CreatedAt string `json:"created_at"`
 }

@@ -1,44 +1,46 @@
 package storage
 
 import (
-	"bytes"
 	"context"
-	"io"
-	"log/slog"
+	"mime/multipart"
+	"time"
 
-	"cloud.google.com/go/storage"
-	"github.com/Woodfyn/file-api/internal/core"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-type FileStorage struct {
-	bucket *storage.BucketHandle
+type File struct {
+	s3        *s3.Client
+	presigner *s3.PresignClient
+
+	bucketName string
 }
 
-func NewFileStorage(bucket *storage.BucketHandle) *FileStorage {
-	return &FileStorage{
-		bucket: bucket,
+func NewFile(s3 *s3.Client, presign *s3.PresignClient, bucketName string) *File {
+	return &File{
+		s3:        s3,
+		presigner: presign,
+
+		bucketName: bucketName,
 	}
 }
 
-func (f *FileStorage) Upload(ctx context.Context, file *core.File) error {
-	object := f.bucket.Object(file.Name)
-	writer := object.NewWriter(ctx)
-	defer writer.Close()
+func (f *File) UploadFile(ctx context.Context, key string, file multipart.File) error {
+	_, err := f.s3.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(f.bucketName),
+		Key:    aws.String(key),
+		Body:   file,
+	})
 
-	if _, err := io.Copy(writer, bytes.NewReader(file.Bytes)); err != nil {
-		slog.Error("failed to upload file", "err", err)
-		return err
-	}
-
-	if err := object.ACL().Set(context.Background(), storage.AllUsers, storage.RoleReader); err != nil {
-		slog.Error("failed to set ACL", "err", err)
-		return err
-	}
-
-	return nil
+	return err
 }
 
-func (f *FileStorage) GetFiles(ctx context.Context) ([]*core.File, error) {
-
-	return nil, nil
+func (f *File) GetFile(ctx context.Context, key string) (*v4.PresignedHTTPRequest, error) {
+	return f.presigner.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(f.bucketName),
+		Key:    aws.String(key),
+	}, func(opts *s3.PresignOptions) {
+		opts.Expires = time.Duration(60 * int64(time.Second))
+	})
 }

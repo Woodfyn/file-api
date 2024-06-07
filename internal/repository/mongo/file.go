@@ -8,29 +8,31 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type FilesMongo struct {
+type File struct {
 	db *mongo.Collection
 }
 
-func NewFilesMongo(db *mongo.Database) *FilesMongo {
-	return &FilesMongo{
+func NewFile(db *mongo.Database) *File {
+	return &File{
 		db: db.Collection(FILE_COLLECTION),
 	}
 }
 
-func (f *FilesMongo) CreateFile(ctx context.Context, file *core.File) error {
-	if _, err := f.db.InsertOne(ctx, file); err != nil {
-		return err
-	}
+func (f *File) CreateFile(ctx context.Context, file *core.File) error {
+	_, err := f.db.InsertOne(ctx, file)
 
-	return nil
+	return err
 }
 
-func (f *FilesMongo) GetFileByName(ctx context.Context, name string) (*core.File, error) {
-	response := new(core.File)
+func (f *File) GetFiles(ctx context.Context, userId string) ([]*core.File, error) {
+	var response []*core.File
+	cursor, err := f.db.Find(ctx, bson.M{"user_id": userId})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
 
-	result := f.db.FindOne(ctx, bson.M{"name": name})
-	if err := result.Decode(response); err != nil {
+	if err = cursor.All(ctx, &response); err != nil {
 		return nil, err
 	}
 

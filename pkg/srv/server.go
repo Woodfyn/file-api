@@ -1,9 +1,7 @@
 package srv
 
 import (
-	"time"
-
-	"github.com/gofiber/fiber"
+	"github.com/gofiber/fiber/v2"
 )
 
 type Server struct {
@@ -15,13 +13,6 @@ func NewServer(app *fiber.App) *Server {
 }
 
 func (s *Server) Run(port string) error {
-	settings := fiber.Settings{
-		WriteTimeout: 10 * time.Second,
-		ReadTimeout:  10 * time.Second,
-	}
-
-	*s.app.Settings = settings
-
 	return s.app.Listen(":" + port)
 }
 

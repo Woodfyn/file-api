@@ -4,15 +4,13 @@ import (
 	"os"
 	"time"
 
-	"github.com/Woodfyn/file-api/internal/core"
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 )
 
 type Config struct {
 	Mongo    Mongo
-	RDB      RDB
-	Firebase Firebase
+	AWS      AWS
 	Server   Server
 	JWT      JWT
 	Password Password
@@ -25,13 +23,11 @@ type Mongo struct {
 	Password string
 }
 
-type RDB struct {
-	Addr string
-}
-
-type Firebase struct {
-	FileName   string
-	BucketName string
+type AWS struct {
+	AccessKeyID     string
+	SecretAccessKey string
+	Region          string
+	BucketName      string
 }
 
 type Server struct {
@@ -71,7 +67,7 @@ func InitConfig(folder, file string) (*Config, error) {
 func setFromEnv(cfg *Config) error {
 	err := godotenv.Load()
 	if err != nil {
-		return core.ErrFileNotFound
+		return err
 	}
 
 	cfg.Mongo.URI = os.Getenv("MONGO_INITDB_ROOT_URI")
@@ -79,10 +75,10 @@ func setFromEnv(cfg *Config) error {
 	cfg.Mongo.Username = os.Getenv("MONGO_INITDB_ROOT_USERNAME")
 	cfg.Mongo.Password = os.Getenv("MONGO_INITDB_ROOT_PASSWORD")
 
-	cfg.RDB.Addr = os.Getenv("REDIS_PORT")
-
-	cfg.Firebase.FileName = os.Getenv("FIREBASE_FILE_NAME")
-	cfg.Firebase.BucketName = os.Getenv("FIREBASE_BUCKET_NAME")
+	cfg.AWS.AccessKeyID = os.Getenv("AWS_ACCESS_KEY_ID")
+	cfg.AWS.SecretAccessKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
+	cfg.AWS.Region = os.Getenv("AWS_DEFAULT_REGION")
+	cfg.AWS.BucketName = os.Getenv("AWS_S3_BUCKET_NAME")
 
 	cfg.Password.Salt = os.Getenv("PASSWORD_SALT")
 

@@ -2,55 +2,83 @@ package service
 
 import (
 	"context"
+	"log/slog"
+	"mime/multipart"
+	"time"
 
 	"github.com/Woodfyn/file-api/internal/core"
-	"github.com/Woodfyn/file-api/internal/repository/mongo"
-	"github.com/Woodfyn/file-api/internal/repository/storage"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 )
 
-type FileService struct {
-	mongoRepo   mongo.Files
-	storageRepo storage.Files
+type fileMongo interface {
+	CreateFile(ctx context.Context, file *core.File) error
+	GetFiles(ctx context.Context, userId string) ([]*core.File, error)
 }
 
-func NewFileService(mongoRepo mongo.Files, storageRepo storage.Files) *FileService {
-	return &FileService{
-		mongoRepo:   mongoRepo,
-		storageRepo: storageRepo,
+type fileS3 interface {
+	UploadFile(ctx context.Context, key string, file multipart.File) error
+	GetFile(ctx context.Context, key string) (*v4.PresignedHTTPRequest, error)
+}
+
+type File struct {
+	mongo fileMongo
+	s3    fileS3
+}
+
+func NewFile(mongo fileMongo, s3 fileS3) *File {
+	return &File{
+		mongo: mongo,
+		s3:    s3,
 	}
 }
 
-func (s *FileService) Upload(ctx context.Context, fileDTO *core.CreateFileDTO) error {
-	file, err := core.NewFile(fileDTO)
-	if err != nil {
+func (f *File) Upload(ctx context.Context, fileHeader *multipart.FileHeader, file multipart.File, userId string) error {
+	if err := f.mongo.CreateFile(ctx, &core.File{
+		UserID:    userId,
+		Name:      fileHeader.Filename,
+		Size:      fileHeader.Size,
+		CreatedAt: time.Now().Format(time.DateTime),
+	}); err != nil {
 		return err
 	}
 
-	if err := s.storageRepo.Upload(ctx, file); err != nil {
-		return err
-	}
-
-	if err := s.mongoRepo.CreateFile(ctx, file); err != nil {
+	if err := f.s3.UploadFile(ctx, fileHeader.Filename, file); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (s *FileService) GetFiles(ctx context.Context) ([]*core.File, error) {
-	files, err := s.storageRepo.GetFiles(ctx)
+func (f *File) GetFiles(ctx context.Context, userId string) ([]*core.GetAllFilesResp, error) {
+	slog.Info("GetFiles", "userId", userId)
+
+	filesMongo, err := f.mongo.GetFiles(ctx, userId)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, file := range files {
-		filesMongo, err := s.mongoRepo.GetFileByName(ctx, file.Name)
+	slog.Info("GetFiles", "response", filesMongo)
+
+	if len(filesMongo) == 0 {
+		return nil, nil
+	}
+
+	var response []*core.GetAllFilesResp
+	for _, fileMongo := range filesMongo {
+		output, err := f.s3.GetFile(ctx, fileMongo.Name)
 		if err != nil {
 			return nil, err
 		}
 
-		file.ID = filesMongo.ID
+		response = append(response, &core.GetAllFilesResp{
+			ID:        fileMongo.ID.Hex(),
+			UserID:    fileMongo.UserID,
+			Name:      fileMongo.Name,
+			Size:      fileMongo.Size,
+			Url:       output.URL,
+			CreatedAt: fileMongo.CreatedAt,
+		})
 	}
 
-	return nil, nil
+	return response, nil
 }
